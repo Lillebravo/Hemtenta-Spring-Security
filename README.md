@@ -9,7 +9,7 @@
 **1.1 Hotet och er implementation (8p)**
 - Förklara hur SQL injection fungerar mot REST APIs (3p)
 
-### SVAR: 
+**SVAR:** 
 SQL injection i ett rest API sker när en användares indata skickas direkt in i ett SQL statement utan att säkra den genom t.ex. validering eller prepared statements. Angripare kan då skriva sin input med avsikt att köra egen SQL kod som kan läsa, ändra och radera data som denna användare inte har rätt till. Exempel: Om API:t frågar efter ett namn och någon skickar "name": 'Jerry' OR '1'='1'; kan frågan bli:
 SELECT * FROM users WHERE name = 'Jerry' OR '1'='1'; vilket kommer visa alla användare. 
 
