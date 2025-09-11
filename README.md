@@ -82,6 +82,9 @@
 
 **4.1 Dataskydd (8p)**
 - Förklara vilka typer av känslig data som kan läcka via APIs (2p)
+
+  SVAR: Känslig data som kan läcka via API kan vara t.ex. personnummer, kreditkortsnummer, lösenord och annan konfidentiell information. Det är därför mycket viktigt att API:t skyddar känslig information så det    inte läcker ut till personer som inte har rätt till denna informationen. 
+   
 - Visa hur ni använder DTOs för att filtrera känslig data från API-responses (6p)
 
 ### VG-frågor (4 poäng)
