@@ -13,12 +13,6 @@
 **1.2 Skyddsmekanismen (4p)**
 - Förklara hur JPA/Hibernate förhindrar SQL injection med prepared statements
 
-### VG-frågor (8 poäng)
-
-**1.3 Avancerad säkerhet (8p)**
-- Visa @Valid-annotationer och input-validering från ert projekt (4p)
-- Beskriv hur ni konfigurerat databas-användare med begränsade rättigheter (4p)
-
 ---
 
 ## Hot 2: Trasig autentisering (30 poäng totalt)
