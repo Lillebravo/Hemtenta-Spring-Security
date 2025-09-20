@@ -1,0 +1,539 @@
+<!DOCTYPE html>
+<html lang="sv">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Hemtenta Spring Security</title>
+    <link rel="stylesheet" href="hemtentaSpringSecurity.css" />
+  </head>
+  
+  <body>
+    <h1>Hemtenta Spring Security</h1>
+
+    <hr />
+
+    <h2>Hot 1: SQL Injection <span class="points">(20 poäng totalt)</span></h2>
+
+    <h3>G-frågor <span class="points">(12 poäng)</span></h3>
+
+    <div class="question">
+      1.1 Hotet och er implementation <span class="points">(8p)</span>
+    </div>
+    <ul>
+      <li>
+        <strong
+          >Förklara hur SQL injection fungerar mot REST APIs
+          <span class="points">(3p)</span></strong
+        >
+        <div class="answer">
+          <span class="answer-label">SVAR:</span>
+          SQL injection i ett REST API sker när en användares indata skickas
+          direkt in i ett SQL statement utan att säkra den genom t.ex.
+          validering eller prepared statements. Angripare kan då skriva sin
+          input med avsikt att köra egen SQL kod som kan läsa, ändra och radera
+          data som denna användare inte har rätt till.
+
+          <div class="example">
+            <div class="example-title">Exempel:</div>
+            Om API:t frågar efter ett namn och någon skickar
+            <code>"name": 'Jerry' OR '1'='1'</code>, kan frågan bli:
+            <pre class="sql">
+SELECT * FROM users WHERE name = 'Jerry' OR '1'='1';</pre
+            >
+            vilket kommer visa alla användare.
+          </div>
+        </div>
+      </li>
+
+      <li>
+        <strong
+          >Visa kodexempel från era JPA Repository-operationer som skyddar mot
+          SQL injection <span class="points">(5p)</span></strong
+        >
+        <div class="answer">
+          <span class="answer-label">SVAR:</span>
+          <pre class="java">
+@Query("SELECT b FROM Book b JOIN Author a ON b.authorId = a.id WHERE " +
+        "LOWER(b.title) LIKE LOWER(CONCAT('%', :searchQuery, '%')) OR " +
+        "LOWER(CONCAT(a.firstName, ' ', a.lastName)) LIKE " +
+        "LOWER(CONCAT('%', :searchQuery, '%'))")
+List&lt;Book&gt; searchBooksByTitleOrAuthor(@Param("searchQuery") String searchQuery);</pre
+          >
+
+          Parametisering i min Query här skyddar mot SQL injection genom att JPA
+          binder användarens input (<code>:searchQuery</code>) som en parameter
+          istället för att direkt placera den i SQL-strängen. Detta gör så att
+          eventuella specialtecken som <code>'</code>, <code>;</code> eller
+          SQL-kommandon inte tolkas som kod utan som en vanlig sträng. Detta
+          förhindrar att angripare kan manipulera queryn för att köra oönskade
+          SQL-operationer.
+        </div>
+      </li>
+    </ul>
+
+    <div class="question">
+      1.2 Skyddsmekanismen <span class="points">(4p)</span>
+    </div>
+    <ul>
+      <li>
+        <strong
+          >Förklara hur JPA/Hibernate förhindrar SQL injection med prepared
+          statements</strong
+        >
+        <div class="answer">
+          <span class="answer-label">SVAR:</span>
+          JPA/Hibernate använder prepared statements för att skilja SQL-kod från
+          användarinput. Värden som kopplas med <code>:param</code> skickas
+          separat till databasen och behandlas alltid som data, inte kod.
+          Specialtecken som <code>'</code> eller <code>;</code> kan därför inte
+          manipulera queryn. Så även om någon skulle skriva
+          <code>"; DROP TABLE Books;"</code> i min sökfunktion för books så
+          skulle det tolkas som att man söker efter en bok som heter så, inte
+          som skadlig SQL kod.
+        </div>
+      </li>
+    </ul>
+
+    <hr />
+
+    <h2>
+      Hot 2: Trasig autentisering <span class="points">(30 poäng totalt)</span>
+    </h2>
+
+    <h3>G-frågor <span class="points">(18 poäng)</span></h3>
+
+    <div class="question">
+      2.1 Hotet och lösenordssäkerhet <span class="points">(10p)</span>
+    </div>
+    <ul>
+      <li>
+        <strong
+          >Beskriv autentiseringsproblem som kan drabba REST APIs
+          <span class="points">(4p)</span></strong
+        >
+        <div class="answer">
+          <span class="answer-label">SVAR:</span>
+          Autentiseringsproblem i REST APIs uppstår när användare kan komma åt
+          data eller funktioner utan korrekt kontroll av identitet. Vanliga
+          brister är svaga lösenord, dålig hantering av tokens eller att API:t
+          saknar skydd mot brute force-attacker. Vid brute force-problem provar
+          angripare systematiskt alla möjliga lösenord. Sådana brister kan leda
+          till att angripare tar över konton eller får åtkomst till känslig
+          information. För att skydda API:t bör man använda HTTPS och begränsa
+          antalet inloggningsförsök, till exempel genom att blockera användaren
+          i en viss tid efter tre felaktiga försök.
+        </div>
+      </li>
+
+      <li>
+        <strong
+          >Visa kodexempel på BCrypt-hashing och lösenordsvalidering
+          <span class="points">(6p)</span></strong
+        >
+        <div class="answer">
+          <span class="answer-label">SVAR:</span>
+
+          I <code>/register</code> i min authController encodar jag password för
+          nya användare såhär:
+          <pre class="java">
+User user = new User();
+user.setFirstName("user");
+user.setLastName("userson");
+user.setEmail(signUpRequest.getUsername());
+// passwordEncoder.encode() använder BCrypt för att skapa ett säkert hashat lösenord
+user.setPassword(passwordEncoder.encode(signUpRequest.getPassword()));
+user.setRole("USER");
+userRepository.save(user);</pre
+          >
+
+          Sedan i <code>/login</code> använder jag Spring Securitys
+          AuthenticationManager för att validera användarens inloggning:
+          <pre class="java">
+// jämför automatiskt det inmatade lösenordet mot det hashade lösenordet i databasen
+Authentication authentication = authenticationManager.authenticate(
+    new UsernamePasswordAuthenticationToken(
+        loginRequest.getUsername(), 
+        loginRequest.getPassword()
+    )
+);</pre
+          >
+        </div>
+      </li>
+    </ul>
+
+    <div class="question">
+      2.2 Session-baserad autentisering <span class="points">(8p)</span>
+    </div>
+    <ul>
+      <li>
+        <strong
+          >Förklara hur sessions fungerar för ert API och vad som händer vid
+          inloggning</strong
+        >
+        <div class="answer">
+          <span class="answer-label">SVAR:</span>
+          Mitt API använder stateless autentisering med JWT istället för
+          traditionella serverbaserade sessioner. Det innebär att servern inte
+          lagrar någon information om inloggade användare mellan anrop. När en
+          användare loggar in, genereras en JWT (JSON Web Token) som innehåller
+          användarens identitet, roller och ett utgångsdatum (i mitt fall cirka
+          16 minuter framåt). Denna token skickas tillbaka till klienten.
+          <br /><br />
+          Vid varje efterföljande API-anrop skickar klienten med token i
+          Authorization-headern. Servern validerar token genom att kontrollera
+          signaturen och utgångstiden för att säkerställa att anropet kommer
+          från en autentiserad användare.
+        </div>
+      </li>
+    </ul>
+
+    <div class="page-break"></div>
+
+    <h3>VG-frågor <span class="points">(12 poäng)</span></h3>
+
+    <div class="question">
+      2.3 JWT implementation <span class="points">(12p)</span>
+    </div>
+    <ul>
+      <li>
+        <strong
+          >Visa kod för JWT-generering och validering
+          <span class="points">(8p)</span></strong
+        >
+        <div class="answer">
+          <span class="answer-label">SVAR:</span>
+          Token genereras med användarnamn, utgångstid och signeras med hemlig
+          nyckel:
+          <pre class="java">
+String jwt = Jwts.builder()
+        .setSubject(userDetails.getUsername())
+        .setIssuedAt(new Date())
+        .setExpiration(new Date(System.currentTimeMillis() + jwtExpirationMs))
+        .signWith(SignatureAlgorithm.HS512, jwtSecret)
+        .compact();</pre
+          >
+
+          Validering sker genom att försöka parsa token med samma hemliga
+          nyckel:
+          <pre class="java">
+boolean valid = Jwts.parser()
+        .setSigningKey(jwtSecret)
+        .parseClaimsJws(token)
+        .getBody() != null;</pre
+          >
+
+          Användarnamn kan hämtas från token för autentisering:
+          <pre class="java">
+String username = Jwts.parser()
+        .setSigningKey(jwtSecret)
+        .parseClaimsJws(token)
+        .getBody()
+        .getSubject();</pre
+          >
+        </div>
+      </li>
+
+      <li>
+        <strong
+          >Förklara fördelarna med stateless authentication för REST APIs
+          <span class="points">(4p)</span></strong
+        >
+        <div class="answer">
+          <span class="answer-label">SVAR:</span>
+          Eftersom all info om användaren ligger i token behöver servern inte
+          hålla koll på någon session. Varje server kan kolla token själv,
+          vilket gör det lätt att lägga till fler servrar (load balancing) och
+          skala systemet. Det blir också säkrare eftersom man slipper vissa
+          session-attacker och mer tåligt om en server skulle krascha.
+        </div>
+      </li>
+    </ul>
+
+    <hr />
+
+    <h2>
+      Hot 3: Trasig auktorisering <span class="points">(30 poäng totalt)</span>
+    </h2>
+
+    <h3>G-frågor <span class="points">(18 poäng)</span></h3>
+
+    <div class="question">
+      3.1 Hotet och rollbaserad säkerhet <span class="points">(12p)</span>
+    </div>
+    <ul>
+      <li>
+        <strong
+          >Beskriv privilege escalation i APIs med exempel
+          <span class="points">(4p)</span></strong
+        >
+        <div class="answer">
+          <span class="answer-label">SVAR:</span>
+          Privilege escalation i APIs uppstår när en användare får högre åtkomst
+          än de borde ha, t.ex. genom att manipulera request-data. Till exempel
+          kan en vanlig användare ändra sin roll i en JSON-body från:
+          <pre class="json">
+{
+    "username": "Jerry",
+    "role": "user"
+}</pre
+          >
+          till:
+          <pre class="json">
+{
+    "username": "Jerry",
+    "role": "admin"
+}</pre
+          >
+          Om API:t inte kontrollerar detta, kan användaren få
+          administratörsrättigheter och komma åt funktioner eller data de
+          egentligen inte ska ha tillgång till.
+        </div>
+      </li>
+
+      <li>
+        <strong
+          >Visa er Spring Security konfiguration för endpoint-skydd baserat på
+          roller <span class="points">(8p)</span></strong
+        >
+        <div class="answer">
+          <span class="answer-label">SVAR:</span>
+          <pre class="java">
+http.authorizeHttpRequests(auth -> auth
+    // Endpoints som bara admin får använda
+    .requestMatchers(HttpMethod.POST, "/api/books/**").hasRole("ADMIN")
+    .requestMatchers(HttpMethod.POST, "/api/authors/**").hasRole("ADMIN")
+    .requestMatchers(HttpMethod.PUT, "/api/loans/{id}/extend**").hasRole("ADMIN")
+    .requestMatchers("/api/users/**").hasRole("ADMIN")
+    // Loans endpoints som både USER och ADMIN får använda
+    .requestMatchers("/api/loans/**").hasAnyRole("USER", "ADMIN")
+    // Resten är öppet
+    .anyRequest().permitAll()
+);</pre
+          >
+
+          Den här konfigurationen skyddar mot att vanliga användare försöker bli
+          admin genom att ändra sin roll i requesten. Spring Security kollar
+          alltid användarens riktiga roll från JWT, och alla POST/PUT-endpoints
+          som kräver admin är låsta. Även om en vanlig användare försöker ändra
+          sin roll i JSON-body går det alltså inte. På så sätt kan ingen fuska
+          sig till högre privilegier.
+        </div>
+      </li>
+    </ul>
+
+    <div class="question">
+      3.2 HTTP-statuskoder <span class="points">(6p)</span>
+    </div>
+    <ul>
+      <li>
+        <strong
+          >Förklara skillnaden mellan 401 och 403, ge exempel från ert
+          API</strong
+        >
+        <div class="answer">
+          <span class="answer-label">SVAR:</span>
+          <div class="status-codes">
+            <div>
+              <span class="status-code">401 Unauthorized:</span> Användaren är
+              inte inloggad eller skickar ingen giltig JWT. T.ex:
+              <code>POST /api/books</code> utan token → 401.
+            </div>
+            <br />
+            <div>
+              <span class="status-code">403 Forbidden:</span> Användaren är
+              inloggad men har inte rätt roll. T.ex: vanlig användare utan admin
+              roll försöker <code>POST /api/books</code> → 403.
+            </div>
+          </div>
+        </div>
+      </li>
+    </ul>
+
+    <h3>VG-frågor <span class="points">(12 poäng)</span></h3>
+
+    <div class="question">
+      3.3 Metodsäkerhet <span class="points">(8p)</span>
+    </div>
+    <ul>
+      <li>
+        <strong
+          >Visa @PreAuthorize-annotationer från era service-klasser</strong
+        >
+      </li>
+    </ul>
+
+    <div class="question">
+      3.4 Objektbaserad säkerhet <span class="points">(4p)</span>
+    </div>
+    <ul>
+      <li>
+        <strong
+          >Hur implementerar ni att User A inte kan komma åt User B:s
+          data?</strong
+        >
+      </li>
+    </ul>
+
+    <div class="page-break"></div>
+
+    <hr />
+
+    <h2>
+      Hot 4: Exponering av känslig data
+      <span class="points">(12 poäng totalt)</span>
+    </h2>
+
+    <h3>G-frågor <span class="points">(8 poäng)</span></h3>
+
+    <div class="question">4.1 Dataskydd <span class="points">(8p)</span></div>
+    <ul>
+      <li>
+        <strong
+          >Förklara vilka typer av känslig data som kan läcka via APIs
+          <span class="points">(2p)</span></strong
+        >
+        <div class="answer">
+          <span class="answer-label">SVAR:</span>
+          Känslig data som kan läcka via API kan vara t.ex. personnummer,
+          kreditkortsnummer, lösenord och annan konfidentiell information. Det
+          är därför mycket viktigt att API:t skyddar känslig information så det
+          inte läcker ut till personer som inte har rätt till denna
+          informationen.
+        </div>
+      </li>
+
+      <li>
+        <strong
+          >Visa hur ni använder DTOs för att filtrera känslig data från
+          API-responses <span class="points">(6p)</span></strong
+        >
+        <div class="answer">
+          <span class="answer-label">SVAR:</span>
+          Jag använder UserDTO för att skicka användardata utan lösenord till
+          klienten. Alla endpoints (<code>getAllUsers</code>,
+          <code>getUserByEmail</code>, <code>addUser</code>) returnerar UserDTO
+          istället för User. På så sätt exponeras aldrig känslig information som
+          lösenord.
+
+          <pre class="java">
+// UserDTO filtrerar bort lösenord
+public class UserDTO {
+    private Long id;
+    private String name;
+    private String email;
+    private LocalDateTime registrationDate;
+
+    public UserDTO(Long id, String firstName, String lastName, 
+                   String email, LocalDateTime registrationDate) {
+        this.id = id;
+        this.name = firstName + " " + lastName;
+        this.email = email;
+        this.registrationDate = registrationDate;
+    }
+}
+
+// Användning av DTO i controller
+List&lt;UserDTO&gt; users = userService.getAllUsers();
+return ResponseEntity.ok(users);</pre
+          >
+        </div>
+      </li>
+    </ul>
+
+    <h3>VG-frågor <span class="points">(4 poäng)</span></h3>
+
+    <div class="question">
+      4.2 Avancerad datakryptering <span class="points">(4p)</span>
+    </div>
+    <ul>
+      <li>
+        <strong
+          >Visa implementation av kryptering av känslig data utöver
+          lösenord</strong
+        >
+      </li>
+    </ul>
+
+    <hr />
+
+    <h2>
+      Hot 5: Säkerhetskonfigurationsfel
+      <span class="points">(8 poäng totalt)</span>
+    </h2>
+
+    <h3>G-frågor <span class="points">(4 poäng)</span></h3>
+
+    <div class="question">
+      5.1 Spring Security konfiguration <span class="points">(4p)</span>
+    </div>
+    <ul>
+      <li>
+        <strong
+          >Visa er SecurityConfiguration-klass och förklara vilka endpoints som
+          är öppna vs skyddade</strong
+        >
+        <div class="answer">
+          <span class="answer-label">SVAR:</span>
+          Alla POST- och PUT-endpoints är skyddade med ADMIN-roll, förutom
+          <code>/api/loans/{id}/extend</code> som även kräver admin. Övriga
+          loans-endpoints kan användas av både USER och ADMIN. Alla GET-metoder
+          är öppna eftersom de endast läser data och inte kan ändra något. På så
+          sätt styrs åtkomsten på servernivå via Spring Security och JWT,
+          oberoende av vad klienten skickar i requesten.
+
+          <pre class="java">
+@Bean
+public SecurityFilterChain filterChain(HttpSecurity http, 
+                                     AuthEntryPointJwt authEntryPointJwt, 
+                                     AuthAccessDeniedHandler authAccessDeniedHandler) 
+                                     throws Exception {
+    http
+        .cors().and()
+        .csrf().disable()
+        .exceptionHandling(ex -> ex
+            .authenticationEntryPoint(authEntryPointJwt)   // 401
+            .accessDeniedHandler(authAccessDeniedHandler)  // 403
+        )
+        .sessionManagement(sm -> sm
+            .sessionCreationPolicy(SessionCreationPolicy.STATELESS))
+        .authorizeHttpRequests(auth -> auth
+            // ADMIN-only endpoints
+            .requestMatchers(HttpMethod.POST, "/api/books/**").hasRole("ADMIN")
+            .requestMatchers(HttpMethod.POST, "/api/authors/**").hasRole("ADMIN")
+            .requestMatchers(HttpMethod.PUT, "/api/loans/{id}/extend**")
+                .hasRole("ADMIN")
+            .requestMatchers("/api/users/**").hasRole("ADMIN")
+
+            // USER or ADMIN for all other /api/loans/**
+            .requestMatchers("/api/loans/**").hasAnyRole("USER", "ADMIN")
+
+            // Everything else is open
+            .anyRequest().permitAll()
+        );
+
+    http.authenticationProvider(authenticationProvider());
+    http.addFilterBefore(authenticationJwtTokenFilter(), 
+                        UsernamePasswordAuthenticationFilter.class);
+
+    return http.build();
+}</pre
+          >
+        </div>
+      </li>
+    </ul>
+
+    <h3>VG-frågor <span class="points">(4 poäng)</span></h3>
+
+    <div class="question">
+      5.2 Avancerad konfiguration <span class="points">(4p)</span>
+    </div>
+    <ul>
+      <li>
+        <strong
+          >Visa implementation av antingen säkra HTTP-headers ELLER rate
+          limiting (välj ett)</strong
+        >
+      </li>
+    </ul>
+  </body>
+</html>
