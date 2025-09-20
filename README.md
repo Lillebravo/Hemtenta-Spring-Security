@@ -112,8 +112,25 @@ SVAR: Eftersom all info om användaren ligger i token behöver servern inte hål
 
 - Visa er Spring Security konfiguration för endpoint-skydd baserat på roller (8p)
 
+  SVAR:
+  http.authorizeHttpRequests(auth -> auth
+        // Endpoints som bara admin får använda
+        .requestMatchers(HttpMethod.POST, "/api/books/**").hasRole("ADMIN")
+        .requestMatchers(HttpMethod.POST, "/api/authors/**").hasRole("ADMIN")
+        .requestMatchers(HttpMethod.PUT, "/api/loans/{id}/extend**").hasRole("ADMIN")
+        .requestMatchers("/api/users/**").hasRole("ADMIN")
+        // Loans endpoints som både USER och ADMIN får använda
+        .requestMatchers("/api/loans/**").hasAnyRole("USER", "ADMIN")
+        // Resten är öppet
+        .anyRequest().permitAll()
+);
+Den här konfigurationen skyddar mot att vanliga användare försöker bli admin genom att ändra sin roll i requesten. Spring Security kollar alltid användarens riktiga roll från JWT, och alla POST/PUT-endpoints som kräver admin är låsta. Även om en vanlig användare försöker ändra sin roll i JSON-body går det alltså inte. På så sätt kan ingen fuska sig till högre privilegier.
+
 **3.2 HTTP-statuskoder (6p)**
 - Förklara skillnaden mellan 401 och 403, ge exempel från ert API
+SVAR:
+401 Unauthorized: Användaren är inte inloggad eller skickar ingen giltig JWT. T.ex: POST /api/books utan token -> 401.
+403 Forbidden: Användaren är inloggad men har inte rätt roll. T.ex: vanlig användare utan admin roll försöker POST /api/books -> 403.
 
 ### VG-frågor (12 poäng)
 
@@ -136,6 +153,27 @@ SVAR: Eftersom all info om användaren ligger i token behöver servern inte hål
    
 - Visa hur ni använder DTOs för att filtrera känslig data från API-responses (6p)
 
+SVAR: Jag använder UserDTO för att skicka användardata utan lösenord till klienten. Alla endpoints (getAllUsers, getUserByEmail, addUser) returnerar UserDTO istället för User. På så sätt exponeras aldrig känslig information som lösenord. 
+
+// UserDTO filtrerar bort lösenord
+public class UserDTO {
+    private Long id;
+    private String name;
+    private String email;
+    private LocalDateTime registrationDate;
+
+    public UserDTO(Long id, String firstName, String lastName, String email, LocalDateTime registrationDate) {
+        this.id = id;
+        this.name = firstName + " " + lastName;
+        this.email = email;
+        this.registrationDate = registrationDate;
+    }
+}
+
+// Användning av DTO i controller
+List<UserDTO> users = userService.getAllUsers();
+return ResponseEntity.ok(users);
+
 ### VG-frågor (4 poäng)
 
 **4.2 Avancerad datakryptering (4p)**
@@ -149,6 +187,37 @@ SVAR: Eftersom all info om användaren ligger i token behöver servern inte hål
 
 **5.1 Spring Security konfiguration (4p)**
 - Visa er SecurityConfiguration-klass och förklara vilka endpoints som är öppna vs skyddade
+
+SVAR: Alla POST- och PUT-endpoints är skyddade med ADMIN-roll, förutom /api/loans/{id}/extend som även kräver admin. Övriga loans-endpoints kan användas av både USER och ADMIN. Alla GET-metoder är öppna eftersom de endast läser data och inte kan ändra något. På så sätt styrs åtkomsten på servernivå via Spring Security och JWT, oberoende av vad klienten skickar i requesten.
+@Bean
+    public SecurityFilterChain filterChain(HttpSecurity http, AuthEntryPointJwt authEntryPointJwt, AuthAccessDeniedHandler authAccessDeniedHandler) throws Exception {
+        http
+                .cors().and()
+                .csrf().disable()
+                .exceptionHandling(ex -> ex
+                        .authenticationEntryPoint(authEntryPointJwt)   // 401
+                        .accessDeniedHandler(authAccessDeniedHandler) // 403
+                )
+                .sessionManagement(sm -> sm.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
+                .authorizeHttpRequests(auth -> auth
+                        // ADMIN-only endpoints
+                        .requestMatchers(HttpMethod.POST, "/api/books/**").hasRole("ADMIN")
+                        .requestMatchers(HttpMethod.POST, "/api/authors/**").hasRole("ADMIN")
+                        .requestMatchers(HttpMethod.PUT, "/api/loans/{id}/extend**").hasRole("ADMIN")
+                        .requestMatchers("/api/users/**").hasRole("ADMIN")
+
+                        // USER or ADMIN for all other /api/loans/**
+                        .requestMatchers("/api/loans/**").hasAnyRole("USER", "ADMIN")
+
+                        // Everything else is open
+                        .anyRequest().permitAll()
+                );
+
+        http.authenticationProvider(authenticationProvider());
+        http.addFilterBefore(authenticationJwtTokenFilter(), UsernamePasswordAuthenticationFilter.class);
+
+        return http.build();
+    }
 
 ### VG-frågor (4 poäng)
 
