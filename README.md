@@ -14,10 +14,12 @@
 
 - Visa kodexempel från era JPA Repository-operationer som skyddar mot SQL injection (5p)
   
-  SVAR:  @Query("SELECT b FROM Book b JOIN Author a ON b.authorId = a.id WHERE " +
+  SVAR:
+  @Query("SELECT b FROM Book b JOIN Author a ON b.authorId = a.id WHERE " +
                 "LOWER(b.title) LIKE LOWER(CONCAT('%', :searchQuery, '%')) OR " +
                 "LOWER(CONCAT(a.firstName, ' ', a.lastName)) LIKE LOWER(CONCAT('%', :searchQuery, '%'))")
-        List<Book> searchBooksByTitleOrAuthor(@Param("searchQuery") String searchQuery);
+  List<Book> searchBooksByTitleOrAuthor(@Param("searchQuery") String searchQuery);
+  
   Parametisering i min Query här skyddar mot SQL injection genom att JPA binder användarens input (:searchQuery) som en parameter istället för att direkt placera den i SQL-strängen. Detta gör så att eventuella     specialtecken som ', ; eller SQL-kommandon inte tolkas som kod utan som en vanlig sträng. Detta förhindrar att angripare kan manipulera queryn för att köra oönskade SQL-operationer.
 
 **1.2 Skyddsmekanismen (4p)**
